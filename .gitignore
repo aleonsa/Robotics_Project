@@ -1,0 +1,85 @@
+# Compilados C/C++
+*.obj
+*.exe
+*.dll
+*.lib
+*.pdb
+*.exp
+*.ilk
+*.out
+*.app
+*.o
+*.so
+*.a
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.opendb
+ipch/
+*.opensdf
+*.sdf
+*.cachefile
+
+# Archivos de depuración y logs
+*.log
+*.dmp
+
+# Archivos temporales
+*.tmp
+*.temp
+*.bak
+*.swp
+*.~*
+~$*
+
+# Archivos MATLAB
+*.asv
+*.m~
+*.mlx~
+*.fig
+*.mex*
+*.mat
+*.p
+*.slxc
+*.autosave
+
+# Archivos de configuración de MATLAB
+*.prj
+*.mlproj
+*.mldatx
+
+# Salidas MATLAB
+expData.m
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# OneDrive archivos temporales
+~$*
+
+# Carpetas de entorno
+.env/
+.venv/
+build/
+dist/
+Debug/
+Release/
+x64/
+x86/
+*.ipynb_checkpoints
+
+# Archivos de respaldo de editores
+*.bak
+*.old
+*.orig
+
+# Otros
+*.csv
+*.tsv
