@@ -446,8 +446,11 @@ void CALLBACK CPhantomDlg::ControlTimerProc(UINT uID, UINT uMsg, DWORD dwUser, D
 	double t = 0.0, g[n] = { 0.0 }, e[n] = { 0.0 }, qp[n] = { 0.0 }, qpfp[n] = { 0.0 }, qppfp[n] = { 0.0 }, c2 = 0.0, c3 = 0.0, c23 = 0.0, s2 = 0.0, s3 = 0.0, s23 = 0.0;
 
 
-	static double th[p] = { 0.002517290542366,    0.001082466154947,    0.001374082981419,  0 * 0.000768230130927,  0 * 0.035267357329092, 0 * 0.007444737668751,0.004491588558515,  0.005345056038429 };//NEW FOR 1500
-	static double th_anterior[p] = { 0.002517290542366,    0.001082466154947,    0.001374082981419,  0 * 0.000768230130927,  0 * 0.035267357329092, 0 * 0.007444737668751,0.004491588558515,  0.005345056038429 };//NEW FOR 1500
+	static double th[p] = { 0.002517290542366,    0.001082466154947,    0.001374082981419,  0 * 0.000768230130927,  0 * 0.035267357329092, 0 * 0.007444737668751,0.004491588558515,  0.005345056038429 }; // vector nominal de parametros
+	
+    static double Theta[p] = 0; // vector de parametros adaptados
+    static double th_anterior[p] = { 0.002517290542366,    0.001082466154947,    0.001374082981419,  0 * 0.000768230130927,  0 * 0.035267357329092, 0 * 0.007444737668751,0.004491588558515,  0.005345056038429 }; // inicializa parametros para adaptacion
+
 
 	//static double th[p] = { 0.00453641,0.000341864,0.004503919,0.001373760 ,0.001188021 ,0.000553657,0.004948273,0.012955526 };//NEW FOR 1500
 	static double Y[3][8] = 0;
@@ -478,6 +481,12 @@ void CALLBACK CPhantomDlg::ControlTimerProc(UINT uID, UINT uMsg, DWORD dwUser, D
 	double H[n][n] = { { 0, 0, 0 }, {0, 0, 0 }, {0, 0, 0 } };
 	double G[n] = { 0,0,0 };
 	double C[n][n] = { { 0, 0, 0 }, {0, 0, 0 }, {0, 0, 0 } };
+
+    // Matrices estimadas (SlotineLi Adaptable)
+    double Hhat[n][n] = { { 0, 0, 0 }, {0, 0, 0 }, {0, 0, 0 } };
+	double Ghat[n] = { 0,0,0 };
+	double Chat[n][n] = { { 0, 0, 0 }, {0, 0, 0 }, {0, 0, 0 } };
+    double Dhat[n] = { 0, 0, 0 };
 	
 
 	if(iCControl)
@@ -691,30 +700,71 @@ void CALLBACK CPhantomDlg::ControlTimerProc(UINT uID, UINT uMsg, DWORD dwUser, D
 			Y[2][5] = qpf[2];
 			Y[2][6] = 0.0;
 			Y[2][7] = g0 * c23;
+
 			Transpose(Y,3,8, Ytransp)
 			MatrixMul(Gamma, Ytransp, 8, 8, 3, GammaYtransp); //
 			MatrixMul(GammaYtransp, sSlotineLi, 8, 3, 1, theta_dot_error); // 
 
-			for (int i = 0; i < n; i++)
+			for (int i = 0; i < 8; i++)
 			{
-				// Aqui nos quedamossssss
+                Theta[i] = th_anterior[i] - theta_dot_error[i]*T;
 			};
 
+            // Modelo con parametros estimados
+            Hhat[0][0] = c2 * c2 *Theta[0] + c2 * c23 *Theta[1] + s23 * s23 *Theta[2];
+            Hhat[1][1] =Theta[0] + 2 * c3 *Theta[1] +Theta[2];
+            Hhat[1][2] = c3 *Theta[1] +Theta[2];
+            Hhat[2][1] = c3 *Theta[1] +Theta[2];
+            Hhat[2][2] =Theta[2];
 
+            Ghat[1] = g0 * (c2 *Theta[6] + c23 *Theta[7]);
+            Ghat[2] = g0 * c23 *Theta[7];
+            
+            //matriz C(q,qp)
+            Chat[0][0] = -c2 * s2 * qpf[1] *Theta[0] - 0.5 * (c2 * s23 * (qpf[1] + qpf[2]) + s2 * c23 * qpf[1]) *Theta[1] + c23 * s23 * (qpf[1] + qpf[2]) *Theta[2];
+            Chat[0][1] = -c2*s2*qpf[0]*th[0]-0.5*(s2*c23+c2*s23)*qpf[0]*th[1]+s23*c23*qpf[0]*th[2]  ;
+            Chat[0][2] = -0.5*c2*s23*qpf[0]*th[1] + c23*s23*qpf[0]*th[2];
+            Chat[1][0] = -1*C[0][1]; //c21
+            Chat[1][1] = -s3*qpf[2]*th[1];
+            Chat[1][2] = -s3*(qpf[1]+qpf[2])*th[1];
+            Chat[2][0] = -1*C[0][2];
+            Chat[2][1] = s3 * qpf[1] *Theta[1];
 
-// Mandar ley de control 
+            Dhat[1] = Theta[3];
+            Dhat[2] = Theta[4];
+            Dhat[3] = Theta[5];
 
+            // ley de control
+			InvMatrix(Kv, n, Kvinv);
+			MatrixMul(Kvinv, Kp, 3, 3, 3, Lambda);
+			MatrixMul(Lambda, qe, 3, 3, 1, Lambdaqe);
+			MatrixMul(Lambda, qep, 3, 3, 1, Lambdaqep);
 
+			for (int i = 0; i < n; i++)
+			{
+				qrp[i] = qdp[i] - Lambdaqe[i]; // qr_dot
+				qrpp[i] = qdpp[i] - Lambdaqep[i]; // qr_ddot
+				sSlotineLi[i] = qpf[i] - qrp[i] ;// s 
+			};
+			double Hhatqrpp[n] = { 0,0,0 }; // H*(qdpp)
+			double Kvs[n][n] = { 0, 0, 0 };
+			double Chatqrp[n] = { 0,0,0 };
+			double Dhatqrp[n] = { 0,0,0 };
+
+			MatrixMul(Chat, qrp, 3, 3, 1, Chatqrp); //    C*qrp
+			MatrixMul(Dhat, qrp, 3, 3, 1, Dhatqrp); //	   D*qrp
+			MatrixMul(Hhat, qrpp, 3, 3, 1, Hhatqrpp); // H*qrpp 
+			MatrixMul(Kv, s, 3, 3, 1, Kvs)  //   Kv*s
 
 	for (int i = 0; i < n; i++)
 	{
 		//Par calculado
 			// taus[i] = Hbar1[i] - Hbar2[i] - Hbar3[i] + Cqp[i] + Dqp[i] + G[i];
 		// SlotineLi
-			taus[i] = Hqrpp[i] + Cqrp[i] + Dqrp[i] + G[i] - Kvs[i];
-
+			// taus[i] = Hqrpp[i] + Cqrp[i] + Dqrp[i] + G[i] - Kvs[i];
+        // SlotineLi Adaptable
+            taus[i] = Hhatqrpp[i] + Chatqrp[i] + Dhatqrp[i] + Ghat[i] - Kvs[i];
 	}
-
 
 	if(t>tf&&controlCompletedFlag)
 	{
